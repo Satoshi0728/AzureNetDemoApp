@@ -1,0 +1,66 @@
+# Items to drop only when exporting (git archive) for public snapshots
+
+# Secrets and credentials
+.env export-ignore
+.env.* export-ignore
+.env.example -export-ignore
+*.pem export-ignore
+*.pfx export-ignore
+*.key export-ignore
+*.cer export-ignore
+**/local.settings.json export-ignore
+**/*secret* export-ignore
+**/*secrets* export-ignore
+**/*credential* export-ignore
+.npmrc export-ignore
+.azure/ export-ignore
+
+# Local tooling and IDE state
+.vscode/ export-ignore
+.idea/ export-ignore
+.DS_Store export-ignore
+**/.DS_Store export-ignore
+.vite/ export-ignore
+.npm/ export-ignore
+.pnpm-store/ export-ignore
+.yarn/cache/ export-ignore
+
+# Generated artifacts and dependencies
+node_modules/ export-ignore
+frontend/node_modules/ export-ignore
+backend/node_modules/ export-ignore
+dist/ export-ignore
+frontend/dist/ export-ignore
+backend/dist/ export-ignore
+build/ export-ignore
+coverage/ export-ignore
+frontend/coverage/ export-ignore
+backend/coverage/ export-ignore
+*.tgz export-ignore
+*.zip export-ignore
+
+# Logs and temp files
+logs/ export-ignore
+*.log export-ignore
+npm-debug.log* export-ignore
+yarn-debug.log* export-ignore
+pnpm-debug.log* export-ignore
+tmp/ export-ignore
+temp/ export-ignore
+*.tmp export-ignore
+*.swp export-ignore
+
+# Emulator/stateful data and dumps
+__azurite_db_*__.json export-ignore
+__azurite_db_table__.json export-ignore
+AzuriteConfig/ export-ignore
+AzuriteConfig export-ignore
+__queuestorage__/ export-ignore
+*.bak export-ignore
+*.dump export-ignore
+*.sql export-ignore
+*.sqlite export-ignore
+*.db export-ignore
+
+# Internal-only docs or runbooks
+docs/internal/ export-ignore
