@@ -1,0 +1,49 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "ruleName": {
+      "type": "string",
+      "defaultValue": "Failure Anomalies - app-insights",
+      "metadata": {
+        "description": "Name of the smart detector alert rule."
+      }
+    },
+    "appInsightsResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the target Application Insights component."
+      }
+    },
+    "actionGroupResourceIds": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Action group resource IDs. Leave empty to omit action groups."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "microsoft.alertsmanagement/smartdetectoralertrules",
+      "apiVersion": "2021-04-01",
+      "name": "[parameters('ruleName')]",
+      "location": "global",
+      "properties": {
+        "description": "Failure Anomalies notifies you of an unusual rise in the rate of failed HTTP requests or dependency calls.",
+        "state": "Disabled",
+        "severity": "Sev3",
+        "frequency": "PT1M",
+        "detector": {
+          "id": "FailureAnomaliesDetector"
+        },
+        "scope": [
+          "[parameters('appInsightsResourceId')]"
+        ],
+        "actionGroups": {
+          "groupIds": "[parameters('actionGroupResourceIds')]"
+        }
+      }
+    }
+  ]
+}

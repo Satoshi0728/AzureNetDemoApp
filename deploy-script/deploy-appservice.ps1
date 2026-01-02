@@ -25,6 +25,8 @@ param(
     [switch]$UseExistingAppInsights,
     [object]$EnableAppInsights = $true,
     [object]$DisableIpMasking = $false,
+    [object]$DisableSmartDetection = $false,
+    [object]$DisableFailureAnomalies = $true,
     [switch]$EnableHealthCheck,
     [switch]$SkipDockerBuild,
     [switch]$SkipDockerPush
@@ -93,12 +95,20 @@ $healthCheckRequested = $true
 if ($PSBoundParameters.ContainsKey('EnableHealthCheck')) {
     $healthCheckRequested = [bool]$EnableHealthCheck
 }
+
 $appInsightsRequested = $true
 if ($PSBoundParameters.ContainsKey('EnableAppInsights')) {
     $appInsightsRequested = ConvertTo-BooleanInput -Value $EnableAppInsights -Default $true
 }
+
 $DisableIpMasking = ConvertTo-BooleanInput -Value $DisableIpMasking -Default $false
+
+$DisableSmartDetection = ConvertTo-BooleanInput -Value $DisableSmartDetection -Default $false
+
+$DisableFailureAnomalies = ConvertTo-BooleanInput -Value $DisableFailureAnomalies -Default $true
+
 $logAnalyticsWorkspaceProvided = $PSBoundParameters.ContainsKey('LogAnalyticsWorkspaceName')
+
 
 $script:ctrlCHandler = $null
 $script:ctrlCHandlerRegistered = $false
@@ -892,11 +902,52 @@ if ($appInsightsRequested) {
             }
         }
     }
+
+    if ($DisableSmartDetection) {
+        if (-not $AppInsightsName -or -not $AppInsightsResourceGroupName) {
+            Write-Host "DisableSmartDetection requested but Application Insights identifiers are missing; skipping Smart Detection update." -ForegroundColor Yellow
+        } else {
+            $smartDetectionDisableScript = Join-Path $scriptRoot "app-insights-smartdetection-settings/disable-smart-detection-rules.ps1"
+            if (-not (Test-Path -LiteralPath $smartDetectionDisableScript)) {
+                throw "DisableSmartDetection was requested, but script '$smartDetectionDisableScript' was not found."
+            }
+
+            & $smartDetectionDisableScript `
+                -AppInsightsName $AppInsightsName `
+                -AppInsightsResourceGroupName $AppInsightsResourceGroupName
+        }
+    }
+
+    if ($DisableFailureAnomalies) {
+        if (-not $AppInsightsName -or -not $AppInsightsResourceGroupName) {
+            Write-Host "DisableFailureAnomalies requested but Application Insights identifiers are missing; skipping Failure Anomalies alert update." -ForegroundColor Yellow
+        } else {
+            $failureAnomaliesScript = Join-Path $scriptRoot "app-insights-smartdetection-settings/disable-failure-anomalies.ps1"
+            if (-not (Test-Path -LiteralPath $failureAnomaliesScript)) {
+                throw "DisableFailureAnomalies was requested, but script '$failureAnomaliesScript' was not found."
+            }
+
+            & $failureAnomaliesScript `
+                -AppInsightsName $AppInsightsName `
+                -AppInsightsResourceGroupName $AppInsightsResourceGroupName `
+                -SubscriptionId $SubscriptionId
+        }
+    }
+
 } else {
     Write-Host "Application Insights: disabled" -ForegroundColor Yellow
     if ($DisableIpMasking) {
         Write-Host "DisableIpMasking requested but Application Insights is disabled; skipping IP masking update." -ForegroundColor Yellow
     }
+
+    if ($DisableSmartDetection) {
+        Write-Host "DisableSmartDetection requested but Application Insights is disabled; skipping Smart Detection update." -ForegroundColor Yellow
+    }
+
+    if ($DisableFailureAnomalies) {
+        Write-Host "DisableFailureAnomalies requested but Application Insights is disabled; skipping Failure Anomalies alert update." -ForegroundColor Yellow
+    }
+
 }
 
 

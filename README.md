@@ -75,6 +75,8 @@ cd frontend && npm install && npm run dev
 | `-HealthCheckPath` / `-EnableHealthCheck` | `/api/healthz` / `$true` | B1 以上のみ適用。無効化は `-EnableHealthCheck:$false`。 |
 | `-EnableAppInsights` / `-UseExistingAppInsights` | `$true` / `$false` | 既存 App Insights 選択可。無効化は `-EnableAppInsights:$false`。 |
 | `-DisableIpMasking` | `$false` | Application Insights の IP マスキングを無効化。既定では収集しないことを推奨。使用時は下記の警告とドキュメントを確認。 |
+| `-DisableSmartDetection` | `$false` | `$true` にすると Application Insights の Smart Detection 既定ルール 10 件をすべて無効化。作成/既存いずれも適用。 |
+| `-DisableFailureAnomalies` | `$true` | Failure Anomalies (smart detector alert) を `Disabled` に設定。App Insights 無効時はスキップ。 |
 | `-LogAnalyticsWorkspaceName` / `-LogAnalyticsWorkspaceResourceGroupName` | 未指定なら探索 / `WebAppResourceGroupName` | 未指定時は RG 内の既存 Workspace を優先利用。無い場合だけ新規作成。 |
 
 ### 実行例
@@ -93,7 +95,7 @@ cd frontend && npm install && npm run dev
 > **App Insights:** `-EnableAppInsights:$false` で無効化できます。既存を選ぶ場合は `-UseExistingAppInsights:$true` を指定してください。
 > **Log Analytics Workspace:** `-LogAnalyticsWorkspaceName` 未指定時、対象 RG 内の既存 Workspace を優先利用します。無い場合だけ新規作成されます。
 
-#### IP マスキング (Application Insights)
+#### IP マスキング無効化 (-DisableIpMasking)
 
 - `-DisableIpMasking` を `$true` にすると、Application Insights で IP マスキングを無効化します（既定はマスキング有効）。
 - 既定では、IP アドレスを収集しないことが推奨されます。無効化する場合はコンプライアンスや現地規制への適合を必ず確認してください。
@@ -115,6 +117,20 @@ cd frontend && npm install && npm run dev
 - FAQ（カスタムコンテナ）: <https://learn.microsoft.com/en-us/troubleshoot/azure/app-service/faqs-app-service-linux#custom-containers>
   - `false` または未設定の場合、/home は共有されず、書き込んだファイルは再起動後に保持されません。
   - 共有を有効にするには `true` を明示し、無効化したい場合は `false` を明示してください。
+
+#### Smart Detection 無効化 (-DisableSmartDetection)
+
+- 既定値: `-DisableSmartDetection` は `$false`。App Insights を作成/既存いずれでも適用されます。`-DisableSmartDetection` を `$true` にすると、App Insights の Smart Detection 既定ルール 10 件（slowpageloadtime 等）をすべて `false` にします。
+  App Insights を無効にしている場合（`-EnableAppInsights:$false`）は Smart Detection 停止もスキップされます。
+- ポータルで再度有効化したい場合は、対象 App Insights > 調査 > スマート検出 > 設定から個別ルールを ON に戻すか、ARM/CLI で `enabled:true` を再適用してください。
+- Azure 公式リファレンス: <https://learn.microsoft.com/ja-jp/azure/azure-monitor/alerts/proactive-arm-config>
+
+#### Failure Anomalies アラート無効化 (-DisableFailureAnomalies)
+
+- 既定値: `-DisableFailureAnomalies` は `$true`。`-EnableAppInsights:$false` の場合は実行をスキップします。
+- `$true` のとき、Failure Anomalies smart detector alert を `state: Disabled` でデプロイします（検出器: `FailureAnomaliesDetector`、severity: Sev3、frequency: PT1M、scope: 対象 App Insights）。アクショングループは既定で空です。
+- 再度有効化したい場合は、ポータルの Smart detection から Failure Anomalies を ON に戻すか、同テンプレートを `state: Enabled` に変更して再デプロイしてください。
+- Failure Anomalies の警告ルールは Application Insights 作成時に自動生成され既定で有効化されるため、本オプションは [スマート検出 - 失敗の異常](https://learn.microsoft.com/ja-jp/azure/azure-monitor/alerts/proactive-failure-diagnostics?WT.mc_id=Portal-Microsoft_Azure_Monitoring#alert-rule-creation) を踏まえて自動有効化を明示的に無効化しています。
 
 デプロイ完了後は Web App の URL にアクセスし、`/tools/ip-fqdn`・`/tools/http-headers` などのルートが Express + React で再現されていることを確認してください。`/api/v1/forbidden` は 403 を返すため、監視ツールの設定時には注意してください。
 
