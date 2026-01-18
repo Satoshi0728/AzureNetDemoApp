@@ -1,6 +1,6 @@
 # Azure App Service (Linux custom container) portal SSH console configuration.
 #
-# Reference documents (https://learn.microsoft.com/en-us/azure/app-service/configure-custom-container?tabs=debian&pivots=container-linux)
+# Reference document (https://learn.microsoft.com/en-us/azure/app-service/configure-custom-container?tabs=debian&pivots=container-linux)
 #
 # Important:
 # - This is NOT intended for exposing SSH to the public internet.
