@@ -1,0 +1,28 @@
+# Azure App Service (Linux custom container) portal SSH console configuration.
+#
+# Reference document (https://learn.microsoft.com/en-us/azure/app-service/configure-custom-container?tabs=debian&pivots=container-linux)
+#
+# Important:
+# - This is NOT intended for exposing SSH to the public internet.
+# - App Service portal SSH expects sshd to listen on port 2222.
+# - The Ciphers/MACs lists must include at least one compatible legacy option for the portal SSH feature.
+# - Root login is enabled to support the portal SSH workflow (root password is set to 'Docker!' in Dockerfile per App Service requirement).
+#
+# If you publish port 2222 externally (e.g., with docker run -p 2222:2222), you MUST revisit these settings.
+Port 2222
+ListenAddress 0.0.0.0
+LoginGraceTime 180
+X11Forwarding yes
+
+# Must include at least one of: aes128-cbc, 3des-cbc, aes256-cbc
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr,aes128-cbc
+
+# Must include at least one of: hmac-sha1, hmac-sha1-96
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,hmac-sha1
+
+StrictModes yes
+SyslogFacility DAEMON
+PasswordAuthentication yes
+PermitEmptyPasswords no
+PermitRootLogin yes
+Subsystem sftp internal-sftp
