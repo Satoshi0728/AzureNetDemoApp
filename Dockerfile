@@ -21,5 +21,27 @@ WORKDIR /app
 COPY --from=backend-build /app/backend /app/backend
 COPY --from=frontend-build /app/frontend/dist /app/backend/public/client
 COPY shared /app/shared
-EXPOSE 8080
+
+COPY entrypoint.sh ./
+
+# Start and enable SSH (required for Azure portal SSH console)
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends \
+		openssh-server \
+		iproute2 \
+		dnsutils \
+		tcpdump \
+		curl \
+		iputils-ping \
+		ca-certificates \
+        openssl \
+	&& echo "root:Docker!" | chpasswd \
+	&& chmod u+x ./entrypoint.sh \
+	&& rm -rf /var/lib/apt/lists/*
+
+COPY sshd_config /etc/ssh/sshd_config
+
+EXPOSE 8080 2222
+
+ENTRYPOINT ["./entrypoint.sh"]
 CMD ["node", "backend/src/server.js"]

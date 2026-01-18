@@ -233,6 +233,90 @@ docker compose up --build
 
 停止する場合は `docker compose down -v`。
 
+## Azure App Service（カスタムコンテナ）向け 1 コンテナ動作確認（SSH/診断）
+
+Azure App Service のデプロイで使う「ルートのマルチステージ Dockerfile（フロント成果物をバックエンドに同梱した 1 コンテナ構成）」を、ローカルで手早く動作確認する手順です。
+
+このリポジトリでは、**Azure App Service（Linux）のカスタムコンテナでポータルの SSH コンソールを利用できるように**、コンテナ起動時に `sshd`（ポート 2222）を起動する構成を含めています。
+
+- 公式リファレンス（Enable SSH）: <https://learn.microsoft.com/ja-jp/azure/app-service/configure-custom-container?pivots=container-linux&tabs=debian#enable-ssh>
+
+### Dockerfile による既定インストール（診断ツール）
+
+ルートの Dockerfile は、最終イメージに次のパッケージを **既定でインストール**します（App Service 上でのトラブルシュート用途）。
+
+- `openssh-server`
+- `iproute2`
+- `dnsutils`
+- `tcpdump`
+- `curl`
+- `iputils-ping`
+- `ca-certificates`
+- `openssl`
+
+> **重要（SSH）**
+>
+> - App Service の「SSH コンソール」機能の要件に合わせて、コンテナ内で `sshd` を 2222 番で起動します。
+> - **このイメージを App Service 以外の用途（ローカル実行、VM、他のコンテナ基盤等）で使う場合は、2222 を外部公開してはいけません**。ローカル検証時も `-p 127.0.0.1:2222:2222` のように loopback バインドで確認してください。
+> - `root:Docker!` は **App Service のカスタムコンテナで SSH コンソールを使うための要件**に合わせたものです（一般の本番運用で推奨される設定ではありません）。
+
+### 1) ビルド
+
+```bash
+docker build -t kof-app:local .
+```
+
+### 2) 起動（バックグラウンド）
+
+```bash
+docker run -d --rm \
+  --name kof-app \
+  -p 8080:8080 \
+  -p 127.0.0.1:2222:2222 \
+  kof-app:local
+```
+
+### 3) ヘルスチェック（アプリが起動していること）
+
+```bash
+curl -fsS http://localhost:8080/api/healthz
+```
+
+UI も同じコンテナから配信されます。
+
+- <http://localhost:8080>
+
+### 4) 起動ログ確認（entrypoint の想定動作）
+
+```bash
+docker logs --tail=200 kof-app
+```
+
+- `sshd` の起動/検証ログが出ます。
+- もし `sshd` が設定不備などで起動できなくても、**warning を出しつつアプリ起動は継続**する設計です（`/api/healthz` が成功することを確認してください）。
+
+### 5) SSH で入れること（任意）
+
+```bash
+ssh -p 2222 root@localhost
+```
+
+パスワードを求められたら `Docker!` を入力し、シェルに入れたら `whoami` などで確認します。
+
+### 6) tcpdump（任意・診断用途）
+
+SSH で入らなくても、ホストから `docker exec` で実行できます。
+
+```bash
+docker exec -it kof-app tcpdump -i any -nn 'port 8080'
+```
+
+### 7) 停止
+
+```bash
+docker stop kof-app
+```
+
 ## 公開時の注意（セキュリティ/プライバシー）
 
 このアプリは「ネットワーク経路やヘッダー挙動の可視化」を目的にしているため、公開運用では次を必ず意識してください。
