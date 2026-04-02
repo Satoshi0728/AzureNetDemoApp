@@ -154,9 +154,9 @@ describe("IpFqdnPage history tracking", () => {
 
       // Check that history section shows data
       expect(screen.getByText("取得履歴")).toBeInTheDocument();
-      
+
       // Check that the table has the history data
-      const historyTable = screen.getByLabelText("取得履歴");
+      const historyTable = await screen.findByLabelText("取得履歴");
       expect(historyTable).toBeInTheDocument();
       expect(historyTable.textContent).toContain("198.51.100.55");
       expect(historyTable.textContent).toContain("X-Forwarded-For");
@@ -279,10 +279,13 @@ describe("IpFqdnPage history tracking", () => {
       await screen.findByRole("heading", { level: 2, name: "10.0.0.2" });
 
       // Check history table has both entries
-      expect(historyTable.textContent).toContain("10.0.0.1");
-      expect(historyTable.textContent).toContain("10.0.0.2");
-      expect(historyTable.textContent).toContain("initial.local");
-      expect(historyTable.textContent).toContain("updated.local");
+      await waitFor(() => {
+        const refreshedHistoryTable = screen.getByLabelText("取得履歴");
+        expect(refreshedHistoryTable.textContent).toContain("10.0.0.1");
+        expect(refreshedHistoryTable.textContent).toContain("10.0.0.2");
+        expect(refreshedHistoryTable.textContent).toContain("initial.local");
+        expect(refreshedHistoryTable.textContent).toContain("updated.local");
+      });
     } finally {
       localeSpy.mockRestore();
     }
