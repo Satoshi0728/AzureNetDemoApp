@@ -4,7 +4,7 @@ import {
   resolveClientIp,
   summarizeHeaders,
   getHelloMessage,
-  getForbidden,
+  getHttpStatus,
 } from "../../services/requestInsights.js";
 import { getEndpointCatalog } from "../../services/catalog.js";
 
@@ -60,9 +60,17 @@ router.get("/endpoints", (req, res) => {
   res.json(getEndpointCatalog());
 });
 
-router.get("/forbidden", (req, res) => {
+router.get("/httpstatus", (req, res) => {
   const timestampProvider = createRequestTimestampProvider();
-  res.status(403).json(getForbidden(req, { timestampProvider }));
+  const response = getHttpStatus(req, req.query.status, { timestampProvider });
+  if (response.kind === "bodyless") {
+    Object.entries(response.headers).forEach(([key, value]) => {
+      res.set(key, value);
+    });
+    return res.status(response.transportStatus).end();
+  }
+
+  return res.status(response.transportStatus).json(response.body);
 });
 
 export default router;

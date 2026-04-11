@@ -33,7 +33,7 @@ if (!baseUrl) {
 
 const endpoints = [
   { path: "/api/healthz", expectStatus: 200 },
-  { path: "/api/v1/forbidden", expectStatus: 403 },
+  { path: "/api/v1/httpstatus?status=403", expectStatus: 403 },
 ];
 
 const controller = new AbortController();

@@ -1,3 +1,5 @@
+import { findHttpStatusCatalogEntry, isBodylessHttpStatus } from "../../../shared/http-status-catalog.mjs";
+
 const IMPORTANT_HEADERS = Object.freeze([
   { key: "accept-encoding", displayName: "Accept-Encoding" },
   { key: "accept-language", displayName: "Accept-Language" },
@@ -58,8 +60,35 @@ const normalizeIp = (ip) => {
 
 const defaultTimestampProvider = () => new Date().toISOString();
 
+const MIN_HTTP_STATUS = 200;
+const MAX_HTTP_STATUS = 599;
+
 const resolveTimestampProvider = (options) =>
   typeof options?.timestampProvider === "function" ? options.timestampProvider : defaultTimestampProvider;
+
+const getHttpStatusDefinition = (statusCode) => findHttpStatusCatalogEntry(statusCode);
+
+const getStatusDescription = (statusCode) =>
+  getHttpStatusDefinition(statusCode)?.description ??
+  `No predefined description is available for HTTP ${statusCode}. This tool treats it as a custom or undocumented response code.`;
+
+const getStatusLabel = (statusCode) => getHttpStatusDefinition(statusCode)?.label ?? "Unknown Status";
+
+const buildHttpStatusError = (req, options, code, message) => {
+  const timestampProvider = resolveTimestampProvider(options);
+  return {
+    kind: "json",
+    transportStatus: 400,
+    body: {
+      error: {
+        code,
+        message,
+      },
+      generatedAt: timestampProvider(),
+      path: req.originalUrl,
+    },
+  };
+};
 
 export const resolveClientIp = (req, options) => {
   const timestampProvider = resolveTimestampProvider(options);
@@ -163,14 +192,65 @@ export const getHelloMessage = (options) => {
   };
 };
 
-export const getForbidden = (req, options) => {
+export const getHttpStatus = (req, statusValue, options) => {
   const timestampProvider = resolveTimestampProvider(options);
+  const normalized = typeof statusValue === "string" ? statusValue.trim() : "";
+
+  if (!normalized) {
+    return buildHttpStatusError(
+      req,
+      { timestampProvider },
+      "Missing status parameter",
+      'Query parameter "status" is required.',
+    );
+  }
+
+  if (!/^\d+$/.test(normalized)) {
+    return buildHttpStatusError(
+      req,
+      { timestampProvider },
+      "Invalid status parameter",
+      'Query parameter "status" must be an integer.',
+    );
+  }
+
+  const statusCode = Number(normalized);
+  if (statusCode < MIN_HTTP_STATUS || statusCode > MAX_HTTP_STATUS) {
+    return buildHttpStatusError(
+      req,
+      { timestampProvider },
+      "Invalid status parameter",
+      'Query parameter "status" must be between 200 and 599.',
+    );
+  }
+
+  const generatedAt = timestampProvider();
   return {
-    error: {
-      code: "403 Page",
-      message: "Access to this resource is forbidden.",
-    },
-    generatedAt: timestampProvider(),
-    path: req.originalUrl,
+    ...(isBodylessHttpStatus(statusCode)
+      ? {
+          kind: "bodyless",
+          headers: {
+            "X-Generated-At": generatedAt,
+            "X-Status-Text": getStatusLabel(statusCode),
+          },
+          meta: {
+            statusCode,
+            statusText: getStatusLabel(statusCode),
+            description: getStatusDescription(statusCode),
+            generatedAt,
+            path: req.originalUrl,
+          },
+        }
+      : {
+          kind: "json",
+          body: {
+            statusCode,
+            statusText: getStatusLabel(statusCode),
+            description: getStatusDescription(statusCode),
+            generatedAt,
+            path: req.originalUrl,
+          },
+        }),
+    transportStatus: statusCode,
   };
 };

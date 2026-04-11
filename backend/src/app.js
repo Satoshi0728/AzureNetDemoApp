@@ -95,9 +95,6 @@ export const createApp = () => {
       return res.status(503).send("Client build not available.");
     }
     const normalizedPath = normalizeSpaPath(req.path);
-    if (normalizedPath === "/tools/forbidden") {
-      return res.status(403).sendFile(path.join(clientDir, "index.html"));
-    }
     const statusCode = spaAllowlist.has(normalizedPath) ? 200 : 404;
     return res.status(statusCode).sendFile(path.join(clientDir, "index.html"));
   });

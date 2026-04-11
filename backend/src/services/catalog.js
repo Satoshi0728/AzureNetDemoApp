@@ -15,11 +15,11 @@ const endpointCatalog = Object.freeze([
     description: "Shows client IP details alongside host header and request URL in one view.",
   },
   {
-    name: "Forbidden Tester",
-    path: "/tools/forbidden",
+    name: "HTTP Status Tester",
+    path: "/tools/http-status",
     method: "GET",
     category: "page",
-    description: "Shows the API's 403 Forbidden payload for gateway testing.",
+    description: "Lets you inspect selected HTTP status responses in the browser.",
   },
   {
     name: "Hello",
@@ -66,19 +66,18 @@ const endpointCatalog = Object.freeze([
     description: "Standalone lookup of host header and request URL.",
   },
   {
-    name: "Forbidden API",
-    path: "/api/v1/forbidden",
-    method: "GET",
-    category: "api",
-    description: "Delivers a 403 Forbidden response for security testing.",
-    statusCode: 403,
-  },
-  {
     name: "Headers API",
     path: "/api/v1/headers",
     method: "GET",
     category: "api",
     description: "Returns all received headers with importance metadata.",
+  },
+  {
+    name: "HTTP Status API",
+    path: "/api/v1/httpstatus?status=403",
+    method: "GET",
+    category: "api",
+    description: "Returns the requested HTTP status code (200–599) with metadata or bodyless headers. Change the status query parameter to any code in that range.",
   },
   {
     name: "Hello API",

@@ -132,7 +132,7 @@ cd frontend && npm install && npm run dev
 - 再度有効化したい場合は、ポータルの Smart detection から Failure Anomalies を ON に戻すか、同テンプレートを `state: Enabled` に変更して再デプロイしてください。
 - Failure Anomalies の警告ルールは Application Insights 作成時に自動生成され既定で有効化されるため、本オプションは [スマート検出 - 失敗の異常](https://learn.microsoft.com/ja-jp/azure/azure-monitor/alerts/proactive-failure-diagnostics?WT.mc_id=Portal-Microsoft_Azure_Monitoring#alert-rule-creation) を踏まえて自動有効化を明示的に無効化しています。
 
-デプロイ完了後は Web App の URL にアクセスし、`/tools/ip-fqdn`・`/tools/http-headers` などのルートが Express + React で再現されていることを確認してください。`/api/v1/forbidden` は 403 を返すため、監視ツールの設定時には注意してください。
+デプロイ完了後は Web App の URL にアクセスし、`/tools/ip-fqdn`・`/tools/http-headers`・`/tools/http-status` などのルートが Express + React で再現されていることを確認してください。
 
 ## 主なルート / API
 
@@ -149,7 +149,63 @@ cd frontend && npm install && npm run dev
 | API | `/api/v1/ip-fqdn` | クライアント IP 情報と Host/URL 情報をまとめて返却する複合 API。IP 側は判定ソース付き、FQDN 側は Host ヘッダーと再構成したフル URL を含みます。1 リクエストで経路・名前解決・リバースプロキシ設定の食い違いを把握する用途に適します。 |
 | API | `/api/v1/fqdn` | Host ヘッダーとプロトコル・パスを組み立てた URL を返す軽量 API。FQDN がどのように見えているかを個別に確認したいときに使用し、IP 判定が不要なケースでの疎通チェックを簡素化します。 |
 | API | `/api/v1/endpoints` | ランディングのカタログ表示で用いるエンドポイントメタデータを返します。ページ系・API 系を区別し、説明文や HTTP メソッド、ステータスコードを含むため、フロントエンドはこの JSON を元に一覧を自動生成できます。 |
-| API | `/api/v1/forbidden` | JSON 形式の 403 Forbidden を返し、パス情報と生成時刻を含みます。ゲートウェイ設定や認可エラー時のハンドリングを再現するためのテスト用エンドポイントで、監視ツールやデモで意図的な失敗応答を確認する用途に向きます。 |
+| API | `/api/v1/httpstatus?status=xxx` | `xxx` の部分に `200` から `599` までの整数を入れると、その HTTP ステータスコードを実際のレスポンスとして返す API です。通常のコードでは JSON で名称・説明文・生成時刻を返し、本文を持たないコードでは補助ヘッダーを返します。ブラウザ確認、curl 検証、フロントエンドの表示テスト、監視用途まで 1 本で扱えます。 |
+
+### `/api/v1/httpstatus` の詳細
+
+`/api/v1/httpstatus` は、任意の HTTP ステータスコードの挙動を 1 本で確認するための API です。URL の `status=xxx` の `xxx` に `200` から `599` までの整数を入れると、そのコード自体をレスポンスの HTTP ステータスとして返します。
+
+- 例: `/api/v1/httpstatus?status=200`
+- 例: `/api/v1/httpstatus?status=404`
+- 例: `/api/v1/httpstatus?status=500`
+
+ブラウザで確認する場合は、そのまま URL を開くだけで構いません。ターミナルから確認する場合は `curl -i` を使うと、HTTP ステータスとヘッダーをまとめて確認できます。
+
+```bash
+curl -i "https://your-app.example/api/v1/httpstatus?status=404"
+```
+
+既知のステータスコードでは、共有カタログに定義された次の情報を返します。
+
+- `statusCode`: 実際に返した HTTP ステータスコード
+- `statusText`: ステータスの短い名称
+- `description`: ステータスの説明文
+- `generatedAt`: レスポンス生成時刻
+- `path`: 実際に呼び出した API パス
+
+通常のステータスでは、HTTP ステータスと本文の両方を確認できます。レスポンス本文は JSON で、概ね次の形です。
+
+```json
+{
+  "statusCode": 404,
+  "statusText": "Not Found",
+  "description": "The requested resource could not be found on this server.",
+  "generatedAt": "2026-04-11T00:00:00.000Z",
+  "path": "/api/v1/httpstatus?status=404"
+}
+```
+
+一方、`204 No Content`、`205 Reset Content`、`304 Not Modified` は HTTP 仕様上レスポンス本文を返さないため、この API でも bodyless として扱います。これらのコードでは JSON 本文を返さず、代わりに `X-Generated-At` と `X-Status-Text` ヘッダーで表示補助用の情報を渡します。frontend の `HttpStatus` ページはそのヘッダーと shared catalog の説明文を組み合わせて結果表示を行います。
+
+レスポンスは次の 2 パターンです。
+
+- 本文あり: JSON で結果を返す
+- 本文なし: HTTP ステータスと補助ヘッダーだけを返す
+
+カタログにないコードでも `200-599` の範囲内であれば通し、`Unknown Status` と汎用説明文を返すため、ベンダー独自コードや未整理コードの検証にも使えます。
+
+不正な入力は `400 Bad Request` です。たとえば次のケースが対象です。
+
+- `status` クエリが未指定
+- `status=abc` のように整数でない
+- `199` や `700` のように `200-599` の範囲外
+
+この API の主な用途は次のとおりです。
+
+- ブラウザや curl で特定のステータスコードの実応答を再現する
+- 監視や外形確認で 2xx / 4xx / 5xx の応答を簡易的に確かめる
+- frontend のエラー表示や bodyless 応答ハンドリングを動作確認する
+- Application Gateway / Front Door / CDN 配下で、意図した HTTP 応答がそのまま見えるか確認する
 
 ## アーキテクチャ概要
 
@@ -158,8 +214,8 @@ cd frontend && npm install && npm run dev
   - `useApiResource` を全ツールで共通利用し、`/api/v1/hello` / `/api/v1/ip-fqdn` / `/api/v1/headers` などのレスポンスをハンドリング。テーブルや履歴表示は各ページ固有の UI コンポーネントで提供。
 - **バックエンド (`backend/`)**
   - Express 4 + Helmet + Compression + CORS。`routes/api.js` が `/api/healthz` を返し、`routes/v1/index.js` が v1 配下の各 API を提供。
-  - `services/requestInsights.js` が IP 判定・ヘッダー正規化・FQDN 生成・403 ペイロードを担当し、`services/catalog.js` が SPA 用カタログメタデータを提供。
-  - `/api/v1/forbidden` は明示的に 403 を返し、ゲートウェイ/認可エラーの再現テストに使用。
+  - `services/requestInsights.js` が IP 判定・ヘッダー正規化・FQDN 生成・HTTP ステータス応答メタデータを担当し、`services/catalog.js` が SPA 用カタログメタデータを提供。
+  - 任意の HTTP ステータス確認は `/api/v1/httpstatus?status=...` で確認可能。
 - **コンテナ構成 / デプロイ**
   - ルートのマルチステージ `Dockerfile` でフロントエンドをビルドし、成果物を `backend/public/client` に同梱した Node 実行イメージを生成。
   - Azure App Service のコンテナ デプロイを主ターゲットとし、`deploy-script/deploy-appservice.ps1` で ACR ビルド〜 Web App 反映を自動化。
@@ -188,7 +244,7 @@ cd frontend && npm install && npm run dev
 │   └── package.json
 ├── deploy-script/deploy-appservice.ps1  # Azure App Service デプロイ自動化スクリプト
 ├── monitoring/
-│   └── ping-endpoints.js          # ヘルスチェック + 403 検証スクリプト
+│   └── ping-endpoints.js          # ヘルスチェック + HTTP ステータス検証スクリプト
 ├── Dockerfile                     # マルチステージビルド
 ├── docker-compose.yml             # ローカル開発用
 └── README.md
@@ -334,7 +390,7 @@ docker stop kof-app
   npm run test:watch  # 監視モード
   ```
 
-  `/api/v1/hello` や `/api/v1/client-ip` など主要ユーティリティ API のレスポンスを検証します。`/api/v1/forbidden` が 403 を返すことも自動チェック対象です。
+  `/api/v1/hello` や `/api/v1/client-ip` など主要ユーティリティ API のレスポンスを検証します。`/api/v1/httpstatus?status=403` の 403 応答や bodyless ステータスも自動チェック対象です。
 
 - **フロントエンド (Vitest + Testing Library)**
 
@@ -376,7 +432,7 @@ az webapp config appsettings set \
 
 ## 稼働監視の例
 
-軽量な動作監視として、`monitoring/ping-endpoints.js` は指定したベース URL に対して `/api/healthz` と `/api/v1/forbidden` を順番にリクエストし、HTTP ステータスを検証します。Azure App Service へのデプロイ後に CI/CD から実行することで、ヘルスチェックと 403 レスポンスが継続して提供されているかを素早く把握できます。
+軽量な動作監視として、`monitoring/ping-endpoints.js` は指定したベース URL に対して `/api/healthz` と `/api/v1/httpstatus?status=403` を順番にリクエストし、HTTP ステータスを検証します。Azure App Service へのデプロイ後に CI/CD から実行することで、ヘルスチェックと 403 レスポンスが継続して提供されているかを素早く把握できます。
 
 ```bash
 node monitoring/ping-endpoints.js --base https://kof-sample.azurewebsites.net
@@ -388,4 +444,3 @@ node monitoring/ping-endpoints.js --base https://kof-sample.azurewebsites.net
 
 Free/Shared プランではアイドル状態からのリクエストでコールドスタートが発生し、応答までに時間がかかる場合があります。
 `Always On` が利用できる Basic (B1) 以上へのアップグレードを検討してください。
-

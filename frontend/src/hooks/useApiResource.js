@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-
-const BODYLESS_STATUSES = new Set([204, 205, 304]);
+import { isBodylessHttpStatus } from "../../../shared/http-status-catalog.mjs";
 
 const shouldParseJson = (response) => {
   if (!response) return false;
   const status = response.status ?? null;
-  if (status != null && BODYLESS_STATUSES.has(status)) {
+  if (status != null && isBodylessHttpStatus(status)) {
     return false;
   }
 
@@ -48,6 +47,8 @@ export const useApiResource = (endpoint, { immediate = true, acceptErrorPayload 
   const [status, setStatus] = useState(immediate ? "loading" : "idle");
   const [error, setError] = useState(null);
   const [httpStatus, setHttpStatus] = useState(null);
+  const [isBodyless, setIsBodyless] = useState(false);
+  const [responseMeta, setResponseMeta] = useState(null);
   const controllerRef = useRef(null);
 
   const resetState = () => {
@@ -55,6 +56,8 @@ export const useApiResource = (endpoint, { immediate = true, acceptErrorPayload 
     setError(null);
     setData(null);
     setHttpStatus(null);
+    setIsBodyless(false);
+    setResponseMeta(null);
   };
 
   const load = useCallback(async () => {
@@ -69,6 +72,11 @@ export const useApiResource = (endpoint, { immediate = true, acceptErrorPayload 
       const response = await fetch(endpoint, { signal: controller.signal });
       responseStatus = response.status;
       setHttpStatus(responseStatus);
+      setIsBodyless(responseStatus != null && isBodylessHttpStatus(responseStatus));
+      setResponseMeta({
+        generatedAt: response.headers?.get?.("x-generated-at") ?? null,
+        statusText: response.headers?.get?.("x-status-text") ?? null,
+      });
 
       const parseJson = shouldParseJson(response);
       const payload = parseJson ? await safeParseJson(response) : null;
@@ -77,7 +85,7 @@ export const useApiResource = (endpoint, { immediate = true, acceptErrorPayload 
         throw new Error(`Failed to parse JSON from ${endpoint}`);
       }
 
-      const expectsBody = responseStatus != null && !BODYLESS_STATUSES.has(responseStatus);
+      const expectsBody = responseStatus != null && !isBodylessHttpStatus(responseStatus);
       if (response.ok && expectsBody && !parseJson) {
         const contentType = response.headers?.get?.("content-type") || "unknown content type";
         responseStatus = 500;
@@ -113,5 +121,5 @@ export const useApiResource = (endpoint, { immediate = true, acceptErrorPayload 
     return () => controllerRef.current?.abort();
   }, [immediate, load]);
 
-  return { data, status, error, httpStatus, reload: load };
+  return { data, status, error, httpStatus, isBodyless, responseMeta, reload: load };
 };

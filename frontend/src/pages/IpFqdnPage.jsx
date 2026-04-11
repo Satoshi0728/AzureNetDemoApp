@@ -101,7 +101,10 @@ export const IpFqdnPage = () => {
             {copiedTarget === "host" ? "コピー済み ✅" : "Host をコピー"}
           </button>
           <Link className="btn btn-sm btn-ghost" to="/tools/http-headers">
-            HTTP ヘッダーを見る
+            HTTP ヘッダーへ
+          </Link>
+          <Link className="btn btn-sm btn-ghost" to="/tools/http-status">
+            HTTP ステータスへ
           </Link>
           <Link className="btn btn-sm btn-ghost" to="/" state={{ scrollToTop: true }}>
             ホームへ戻る
@@ -111,7 +114,7 @@ export const IpFqdnPage = () => {
     >
       <article className="tool-card">
         <header className="tool-card-header">
-          <span className="tool-chip">Resolved IP</span>
+          <span className="tool-chip">Resolved Client IP</span>
           <h2>{client.ip ?? (isLoading ? "取得中..." : "—")}</h2>
         </header>
         <dl className="tool-meta">

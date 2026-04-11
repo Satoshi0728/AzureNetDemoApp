@@ -8,8 +8,8 @@ import { LandingPage } from "./pages/LandingPage.jsx";
 import { HelloPage } from "./pages/HelloPage.jsx";
 import { HeadersPage } from "./pages/HeadersPage.jsx";
 import { NotFoundPage } from "./pages/NotFoundPage.jsx";
-import { ForbiddenPage } from "./pages/ForbiddenPage.jsx";
 import { IpFqdnPage } from "./pages/IpFqdnPage.jsx";
+import { HttpStatusPage } from "./pages/HttpStatus.jsx";
 
 const LANDING_NAV = [
   { id: "tools", label: "ツール一覧", href: "#tools", type: "anchor" },
@@ -22,7 +22,7 @@ const UTILITY_NAV = [
   { id: "tools", label: "ツール一覧", href: "#tools", type: "anchor" },
   { id: "ipfqdn", label: "IP / FQDN", href: "/tools/ip-fqdn", type: "link" },
   { id: "headers", label: "HTTP ヘッダー", href: "/tools/http-headers", type: "link" },
-  { id: "forbidden", label: "403 ページ", href: "/tools/forbidden", type: "link" },
+  { id: "httpstatus", label: "HTTP ステータス", href: "/tools/http-status", type: "link" },
   { id: "home", label: "ホーム", href: "/", type: "link", variant: "button" },
 ];
 
@@ -152,7 +152,7 @@ export default function App() {
         <Route path="/tools/hello" element={<HelloPage />} />
         <Route path="/tools/ip-fqdn" element={<IpFqdnPage />} />
         <Route path="/tools/http-headers" element={<HeadersPage />} />
-        <Route path="/tools/forbidden" element={<ForbiddenPage />} />
+        <Route path="/tools/http-status" element={<HttpStatusPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
       <SiteFooter />

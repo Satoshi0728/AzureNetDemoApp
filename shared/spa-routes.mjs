@@ -3,7 +3,7 @@ const rawSpaRoutes = Object.freeze([
   "/tools/hello",
   "/tools/ip-fqdn",
   "/tools/http-headers",
-  "/tools/forbidden",
+  "/tools/http-status",
 ]);
 
 export const normalizeSpaPath = (value = "/") => {
