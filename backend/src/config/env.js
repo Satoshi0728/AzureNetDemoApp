@@ -33,6 +33,7 @@ export const corsOptions = {
     }
     return callback(new Error(`Origin "${origin}" is not allowed by CORS policy.`));
   },
+  exposedHeaders: ["X-Generated-At", "X-Status-Text"],
   optionsSuccessStatus: 204,
 };
 

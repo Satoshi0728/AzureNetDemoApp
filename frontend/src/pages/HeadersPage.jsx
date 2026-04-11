@@ -117,6 +117,9 @@ export const HeadersPage = () => {
           <button type="button" className="btn btn-sm btn-ghost" onClick={copyHeaders} disabled={!headers.length || isLoading}>
             {copied ? "コピー済み ✅" : "ヘッダーをコピー"}
           </button>
+          <Link className="btn btn-sm btn-ghost" to="/tools/http-status">
+            HTTP ステータスへ
+          </Link>
           <Link className="btn btn-sm btn-ghost" to="/tools/ip-fqdn">
             IP / FQDN へ
           </Link>

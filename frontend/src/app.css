@@ -307,7 +307,8 @@ h1 span {
 
 .site-header .main-nav a:not(.btn)[aria-current="page"] {
   color: #fff;
-  box-shadow: none;
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.85);
 }
 
 .main-nav a:hover {
@@ -1470,6 +1471,11 @@ body.is-menu-open .menu-toggle span:last-child {
   font-size: clamp(1.5rem, 2.8vw, 2.2rem);
 }
 
+.tool-card-header h2.tool-secondary-heading {
+  font-size: clamp(1.2rem, 3vw, 1.6rem);
+  line-height: 1.2;
+}
+
 .tool-card-gap {
   margin: 1.5rem 0;
   border-top: 1px solid rgba(17, 24, 39, 0.12);
@@ -1520,8 +1526,64 @@ body.is-menu-open .menu-toggle span:last-child {
   line-height: 1.8;
 }
 
+.tool-muted {
+  color: rgba(17, 24, 39, 0.62);
+}
+
+.tool-note-wide {
+  max-width: none;
+}
+
 .tool-error {
   color: #ff7b9c;
+}
+
+.tool-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 1.5rem;
+}
+
+.tool-field {
+  display: grid;
+  gap: 0.5rem;
+  flex: 1 1 280px;
+}
+
+.tool-field-label {
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(17, 24, 39, 0.55);
+}
+
+.tool-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 999px;
+  color: var(--text-primary);
+  padding: 0.8rem 1rem;
+  outline: none;
+}
+
+.tool-input--select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  padding-right: 3.2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.25 4.5L6 8.25L9.75 4.5' stroke='%23374151' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: calc(100% - 1.25rem) 50%;
+  background-size: 0.95rem;
+}
+
+.tool-input:focus {
+  border-color: rgba(0, 120, 212, 0.4);
+  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.12);
 }
 
 .tool-table-wrapper {
@@ -1576,6 +1638,81 @@ body.is-menu-open .menu-toggle span:last-child {
   display: inline-flex;
   max-width: 100%;
   word-break: break-all;
+}
+
+.tool-direct-panel {
+  display: flex;
+  align-items: end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.tool-direct-card {
+  display: grid;
+  gap: 1.35rem;
+}
+
+.tool-direct-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.tool-direct-header h2 {
+  margin: 0;
+  max-width: none;
+  margin-left: auto;
+  font-size: clamp(1.2rem, 3vw, 1.6rem);
+  line-height: 1.2;
+  text-align: right;
+}
+
+.tool-direct-panel .tool-field {
+  flex: 0 1 980px;
+  max-width: 980px;
+}
+
+.tool-direct-url-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.75rem;
+  flex-wrap: wrap;
+  margin-top: 1.1rem;
+}
+
+.tool-direct-url-copy {
+  display: grid;
+  min-width: 0;
+  flex: 0 1 980px;
+  max-width: 980px;
+}
+
+.tool-direct-url {
+  width: 100%;
+  padding: 0.45rem 1.1rem;
+  border-radius: var(--radius-md);
+  background: rgba(0, 120, 212, 0.08);
+  border: 1px solid rgba(0, 120, 212, 0.18);
+  font-size: 1.20rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.tool-direct-intro,
+.tool-direct-note {
+  margin: 0;
+  max-width: none;
+}
+
+.tool-direct-curl-row {
+  margin-top: 0;
+}
+
+.tool-direct-curl-command {
+  font-size: 1.02rem;
 }
 
 .tool-showcase {
@@ -1961,6 +2098,10 @@ body.is-menu-open .menu-toggle span:last-child {
 
   .tool-search {
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tool-form {
     align-items: stretch;
   }
 

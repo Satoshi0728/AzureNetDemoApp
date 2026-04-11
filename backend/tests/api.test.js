@@ -2,12 +2,18 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import request from "supertest";
+import {
+  findHttpStatusCatalogEntry,
+  HTTP_STATUS_BODY_BEHAVIOR,
+  isBodylessHttpStatus,
+} from "../../shared/http-status-catalog.mjs";
+import { supportedHttpStatusOptions, directOnlyHttpStatusOptions } from "../../shared/http-status-options.mjs";
 import { spaAllowlist, normalizeSpaPath } from "../../shared/spa-routes.mjs";
 import { createApp } from "../src/app.js";
 import {
   resolveClientIp as resolveClientIpService,
-  getForbidden as getForbiddenService,
   getHelloMessage as getHelloMessageService,
+  getHttpStatus as getHttpStatusService,
 } from "../src/services/requestInsights.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -99,6 +105,156 @@ describe("API v1 utility endpoints", () => {
     expect(response.body.url).toContain("example.test");
     expect(response.body.host).toBe("example.test");
   });
+
+  test("httpstatus endpoint returns metadata for 400", async () => {
+    const response = await request(app).get("/api/v1/httpstatus?status=400");
+
+    expect(response.status).toBe(400);
+    expect(response.headers["content-type"]).toMatch(/application\/json/);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        statusCode: 400,
+        statusText: "Bad Request",
+        description: expect.any(String),
+      }),
+    );
+  });
+
+  test("httpstatus endpoint returns metadata for 403", async () => {
+    const response = await request(app).get("/api/v1/httpstatus?status=403");
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        statusCode: 403,
+        statusText: "Forbidden",
+        description: expect.any(String),
+      }),
+    );
+  });
+
+  test("httpstatus endpoint returns metadata for 404", async () => {
+    const response = await request(app).get("/api/v1/httpstatus?status=404");
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        statusCode: 404,
+        statusText: "Not Found",
+        description: expect.any(String),
+      }),
+    );
+  });
+
+  test("httpstatus endpoint returns metadata for 500", async () => {
+    const response = await request(app).get("/api/v1/httpstatus?status=500");
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        statusCode: 500,
+        statusText: "Internal Server Error",
+        description: expect.any(String),
+      }),
+    );
+  });
+
+  test("httpstatus endpoint returns unknown metadata for 222", async () => {
+    const response = await request(app).get("/api/v1/httpstatus?status=222");
+
+    expect(response.status).toBe(222);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        statusCode: 222,
+        statusText: "Unknown Status",
+        description: expect.stringContaining("HTTP 222"),
+      }),
+    );
+  });
+
+  test.each([
+    ["204", "No Content"],
+    ["205", "Reset Content"],
+    ["304", "Not Modified"],
+  ])("httpstatus endpoint returns a bodyless response for %s", async (code, statusText) => {
+    const response = await request(app).get(`/api/v1/httpstatus?status=${code}`);
+
+    expect(response.status).toBe(Number(code));
+    expect(response.headers["content-type"]).toBeUndefined();
+    expect(response.headers["x-generated-at"]).toEqual(expect.any(String));
+    expect(response.headers["x-status-text"]).toBe(statusText);
+    expect(response.text).toBe("");
+  });
+
+  test("httpstatus endpoint returns 400 when status is missing", async () => {
+    const response = await request(app).get("/api/v1/httpstatus");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: "Missing status parameter",
+          message: 'Query parameter "status" is required.',
+        }),
+      }),
+    );
+  });
+
+  test("httpstatus endpoint returns 400 when status is not numeric", async () => {
+    const response = await request(app).get("/api/v1/httpstatus?status=abc");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: "Invalid status parameter",
+          message: 'Query parameter "status" must be an integer.',
+        }),
+      }),
+    );
+  });
+
+  test("httpstatus endpoint returns 400 when status is out of range", async () => {
+    const response = await request(app).get("/api/v1/httpstatus?status=700");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: "Invalid status parameter",
+          message: 'Query parameter "status" must be between 200 and 599.',
+        }),
+      }),
+    );
+  });
+
+  test("httpstatus endpoint returns 400 when status is informational", async () => {
+    const response = await request(app).get("/api/v1/httpstatus?status=103");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: "Invalid status parameter",
+          message: 'Query parameter "status" must be between 200 and 599.',
+        }),
+      }),
+    );
+  });
+
+  test("httpstatus endpoint returns 400 when status is undocumented informational", async () => {
+    const response = await request(app).get("/api/v1/httpstatus?status=129");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: "Invalid status parameter",
+          message: 'Query parameter "status" must be between 200 and 599.',
+        }),
+      }),
+    );
+  });
 });
 
 describe("requestInsights timestamp provider", () => {
@@ -110,12 +266,68 @@ describe("requestInsights timestamp provider", () => {
     expect(result.resolvedAt).toBe(fixedTimestamp);
   });
 
-  test("getForbidden and getHelloMessage reuse injected timestamp", () => {
+  test("getHelloMessage and getHttpStatus reuse injected timestamp", () => {
     const hello = getHelloMessageService({ timestampProvider });
-    const forbidden = getForbiddenService({ originalUrl: "/test" }, { timestampProvider });
+    const httpStatus = getHttpStatusService({ originalUrl: "/httpstatus?status=403" }, "403", { timestampProvider });
+    const noContent = getHttpStatusService({ originalUrl: "/httpstatus?status=204" }, "204", { timestampProvider });
 
     expect(hello.generatedAt).toBe(fixedTimestamp);
-    expect(forbidden.generatedAt).toBe(fixedTimestamp);
+    expect(httpStatus.transportStatus).toBe(403);
+    expect(httpStatus.kind).toBe("json");
+    expect(httpStatus.body.generatedAt).toBe(fixedTimestamp);
+    expect(noContent.transportStatus).toBe(204);
+    expect(noContent.kind).toBe("bodyless");
+    expect(noContent.headers["X-Generated-At"]).toBe(fixedTimestamp);
+    expect(noContent.meta.generatedAt).toBe(fixedTimestamp);
+  });
+});
+
+describe("HTTP status catalog consistency", () => {
+  const surfacedOptions = [...supportedHttpStatusOptions, ...directOnlyHttpStatusOptions];
+  const fixedTimestamp = "2024-01-01T00:00:00.000Z";
+  const timestampProvider = () => fixedTimestamp;
+
+  test("bodyless status behavior is defined in the shared catalog", () => {
+    expect(findHttpStatusCatalogEntry(204)?.bodyBehavior).toBe(HTTP_STATUS_BODY_BEHAVIOR.BODYLESS);
+    expect(findHttpStatusCatalogEntry(205)?.bodyBehavior).toBe(HTTP_STATUS_BODY_BEHAVIOR.BODYLESS);
+    expect(findHttpStatusCatalogEntry(304)?.bodyBehavior).toBe(HTTP_STATUS_BODY_BEHAVIOR.BODYLESS);
+    expect(findHttpStatusCatalogEntry(200)?.bodyBehavior).toBe(HTTP_STATUS_BODY_BEHAVIOR.JSON);
+    expect(isBodylessHttpStatus(204)).toBe(true);
+    expect(isBodylessHttpStatus(205)).toBe(true);
+    expect(isBodylessHttpStatus(304)).toBe(true);
+    expect(isBodylessHttpStatus(200)).toBe(false);
+  });
+
+  test("every surfaced option is backed by a shared catalog entry", () => {
+    surfacedOptions.forEach((option) => {
+      const catalogEntry = findHttpStatusCatalogEntry(option.code);
+      expect(catalogEntry).toBeDefined();
+      expect(option.label).toBe(catalogEntry.label);
+      expect(option.group).toBe(catalogEntry.group);
+      expect(catalogEntry.description).toEqual(expect.any(String));
+    });
+  });
+
+  test("getHttpStatus reuses the shared catalog for known surfaced codes", () => {
+    surfacedOptions.forEach((option) => {
+      const catalogEntry = findHttpStatusCatalogEntry(option.code);
+      const result = getHttpStatusService(
+        { originalUrl: `/api/v1/httpstatus?status=${option.code}` },
+        String(option.code),
+        { timestampProvider },
+      );
+
+      expect(result.transportStatus).toBe(option.code);
+      const metadata = result.kind === "bodyless" ? result.meta : result.body;
+      expect(metadata).toEqual(
+        expect.objectContaining({
+          statusCode: option.code,
+          statusText: catalogEntry.label,
+          description: catalogEntry.description,
+          generatedAt: fixedTimestamp,
+        }),
+      );
+    });
   });
 });
 
@@ -132,19 +344,6 @@ describe("platform routes", () => {
     );
   });
 
-  test("forbidden API responds with 403 status and JSON error payload", async () => {
-    const response = await request(app).get("/api/v1/forbidden");
-
-    expect(response.status).toBe(403);
-    expect(response.headers["content-type"]).toMatch(/application\/json/);
-    expect(response.body).toEqual(
-      expect.objectContaining({
-        error: expect.objectContaining({
-          code: "403 Page",
-        }),
-      }),
-    );
-  });
 });
 
 describeIfClientBundle("SPA fallback", () => {
@@ -152,13 +351,6 @@ describeIfClientBundle("SPA fallback", () => {
     const response = await request(app).get("/tools/ip-fqdn");
 
     expect(response.status).toBe(200);
-    expect(response.headers["content-type"]).toMatch(/text\/html/);
-  });
-
-  test("forbidden SPA route returns index.html with 403 status", async () => {
-    const response = await request(app).get("/tools/forbidden");
-
-    expect(response.status).toBe(403);
     expect(response.headers["content-type"]).toMatch(/text\/html/);
   });
 
