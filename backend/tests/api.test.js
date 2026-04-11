@@ -214,6 +214,20 @@ describe("API v1 utility endpoints", () => {
     );
   });
 
+  test("httpstatus endpoint returns 400 when status is provided multiple times", async () => {
+    const response = await request(app).get("/api/v1/httpstatus?status=403&status=404");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: "Invalid status parameter",
+          message: 'Query parameter "status" must be a single integer value.',
+        }),
+      }),
+    );
+  });
+
   test("httpstatus endpoint returns 400 when status is out of range", async () => {
     const response = await request(app).get("/api/v1/httpstatus?status=700");
 

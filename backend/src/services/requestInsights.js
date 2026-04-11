@@ -194,6 +194,14 @@ export const getHelloMessage = (options) => {
 
 export const getHttpStatus = (req, statusValue, options) => {
   const timestampProvider = resolveTimestampProvider(options);
+  if (Array.isArray(statusValue)) {
+    return buildHttpStatusError(
+      req,
+      { timestampProvider },
+      "Invalid status parameter",
+      'Query parameter "status" must be a single integer value.',
+    );
+  }
   const normalized = typeof statusValue === "string" ? statusValue.trim() : "";
 
   if (!normalized) {
