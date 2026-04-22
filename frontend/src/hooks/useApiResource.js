@@ -51,14 +51,23 @@ export const useApiResource = (endpoint, { immediate = true, acceptErrorPayload 
   const [responseMeta, setResponseMeta] = useState(null);
   const controllerRef = useRef(null);
 
-  const resetState = () => {
+  const resetState = useCallback(() => {
     setStatus("loading");
     setError(null);
     setData(null);
     setHttpStatus(null);
     setIsBodyless(false);
     setResponseMeta(null);
-  };
+  }, []);
+
+  const clearState = useCallback(() => {
+    setStatus("idle");
+    setError(null);
+    setData(null);
+    setHttpStatus(null);
+    setIsBodyless(false);
+    setResponseMeta(null);
+  }, []);
 
   const load = useCallback(async () => {
     if (!endpoint) return;
@@ -114,6 +123,12 @@ export const useApiResource = (endpoint, { immediate = true, acceptErrorPayload 
     }
   }, [acceptErrorPayload, endpoint]);
 
+  const cancel = useCallback(() => {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    clearState();
+  }, [clearState]);
+
   useEffect(() => {
     if (immediate) {
       load();
@@ -121,5 +136,5 @@ export const useApiResource = (endpoint, { immediate = true, acceptErrorPayload 
     return () => controllerRef.current?.abort();
   }, [immediate, load]);
 
-  return { data, status, error, httpStatus, isBodyless, responseMeta, reload: load };
+  return { data, status, error, httpStatus, isBodyless, responseMeta, reload: load, cancel };
 };

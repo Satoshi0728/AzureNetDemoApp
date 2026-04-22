@@ -133,10 +133,13 @@ export const HttpStatusPage = () => {
       actions={
         <div className="tool-button-bar">
           <Link className="btn btn-sm btn-ghost" to="/tools/http-headers">
-            HTTP ヘッダーを見る
+            HTTP ヘッダーへ
           </Link>
           <Link className="btn btn-sm btn-ghost" to="/tools/ip-fqdn">
             IP / FQDN へ
+          </Link>
+          <Link className="btn btn-sm btn-ghost" to="/tools/timetaken">
+            遅延レスポンス へ
           </Link>
           <Link className="btn btn-sm btn-ghost" to="/" state={{ scrollToTop: true }}>
             ホームへ戻る

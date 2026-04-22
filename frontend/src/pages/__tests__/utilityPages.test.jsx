@@ -6,6 +6,7 @@ import { HelloPage } from "../HelloPage.jsx";
 import { HeadersPage } from "../HeadersPage.jsx";
 import { IpFqdnPage, __resetHistoryForTest } from "../IpFqdnPage.jsx";
 import { HttpStatusPage } from "../HttpStatus.jsx";
+import { TimeTakenPage } from "../TimeTakenPage.jsx";
 import {
   httpStatusCatalog,
   HTTP_STATUS_BODY_BEHAVIOR,
@@ -244,6 +245,95 @@ describe("Utility pages", () => {
     } finally {
       localeSpy.mockRestore();
     }
+  });
+
+  test("TimeTakenPage shows waiting state while the delayed response is in flight", async () => {
+    const user = userEvent.setup();
+    let resolveFetch;
+
+    global.fetch = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = () =>
+            resolve({
+              ok: true,
+              status: 200,
+              headers: {
+                get: (name) => (name && name.toLowerCase() === "content-type" ? "application/json" : null),
+              },
+              json: async () => ({
+                requestedSeconds: 2,
+                delayMs: 2000,
+                startedAt: "2025-01-12T09:10:11.000Z",
+                completedAt: "2025-01-12T09:10:13.000Z",
+                path: "/api/v1/timetaken?seconds=2",
+                server: {
+                  hostname: "test-host",
+                },
+              }),
+            });
+        }),
+    );
+
+    render(
+      <MemoryRouter>
+        <TimeTakenPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("button", { name: "中断" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(await screen.findByRole("heading", { level: 2, name: "待機中" })).toBeInTheDocument();
+    expect(screen.getByText("🐢")).toBeInTheDocument();
+    expect(screen.getByText(/requested delay/i)).toBeInTheDocument();
+    expect(screen.getByText(/remaining/i)).toBeInTheDocument();
+    expect(screen.queryByText("まだ実行していません")).not.toBeInTheDocument();
+
+    resolveFetch();
+
+    expect(await screen.findByRole("heading", { level: 2, name: "2 seconds" })).toBeInTheDocument();
+  });
+
+  test("TimeTakenPage cancels the in-flight request from the form", async () => {
+    const user = userEvent.setup();
+    let requestSignal;
+
+    global.fetch = vi.fn((_url, options) => {
+      requestSignal = options?.signal ?? null;
+      return new Promise((_, reject) => {
+        requestSignal?.addEventListener("abort", () => {
+          const abortError = new Error("The operation was aborted.");
+          abortError.name = "AbortError";
+          reject(abortError);
+        });
+      });
+    });
+
+    render(
+      <MemoryRouter>
+        <TimeTakenPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("button", { name: "中断" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(await screen.findByRole("heading", { level: 2, name: "待機中" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "中断" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "中断" }));
+
+    await waitFor(() => expect(requestSignal?.aborted).toBe(true));
+    expect(await screen.findByRole("heading", { level: 2, name: "リクエストを中断しました" })).toBeInTheDocument();
+    expect(
+      screen.getByText("クライアント側で通信を中断しました。必要であれば、もう一度「送信」を押して再実行してください。"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "送信" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "中断" })).not.toBeInTheDocument();
+    expect(screen.queryByText("🐢")).not.toBeInTheDocument();
   });
 });
 

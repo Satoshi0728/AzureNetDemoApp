@@ -12,6 +12,7 @@ import { spaAllowlist, normalizeSpaPath } from "../../shared/spa-routes.mjs";
 import { createApp } from "../src/app.js";
 import {
   resolveClientIp as resolveClientIpService,
+  delayedResponse as delayedResponseService,
   getHelloMessage as getHelloMessageService,
   getHttpStatus as getHttpStatusService,
 } from "../src/services/requestInsights.js";
@@ -269,6 +270,76 @@ describe("API v1 utility endpoints", () => {
       }),
     );
   });
+
+  describe("timetaken endpoint", () => {
+    test("returns delayed response with correct shape", async () => {
+      const response = await request(app).get("/api/v1/timetaken?seconds=0.1");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          requestedSeconds: 0.1,
+          path: "/api/v1/timetaken?seconds=0.1",
+        }),
+      );
+      expect(typeof response.body.delayMs).toBe("number");
+      expect(typeof response.body.startedAt).toBe("string");
+      expect(typeof response.body.completedAt).toBe("string");
+      expect(response.body.server).toEqual(
+        expect.objectContaining({
+          hostname: expect.any(String),
+        }),
+      );
+    });
+
+    test("returns 400 when seconds is missing", async () => {
+      const response = await request(app).get("/api/v1/timetaken");
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toEqual(
+        expect.objectContaining({
+          code: "Missing seconds parameter",
+          message: 'Query parameter "seconds" is required.',
+        }),
+      );
+    });
+
+    test("returns 400 when seconds is negative", async () => {
+      const response = await request(app).get("/api/v1/timetaken?seconds=-1");
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toEqual(
+        expect.objectContaining({
+          code: "Invalid seconds parameter",
+          message: 'Query parameter "seconds" must be a non-negative number.',
+        }),
+      );
+    });
+
+    test("returns 400 when seconds exceeds 300", async () => {
+      const response = await request(app).get("/api/v1/timetaken?seconds=301");
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toEqual(
+        expect.objectContaining({
+          code: "Invalid seconds parameter",
+          message: 'Query parameter "seconds" must be 300 or less.',
+        }),
+      );
+    });
+
+    test("returns 400 when seconds is not a number", async () => {
+      const response = await request(app).get("/api/v1/timetaken?seconds=abc");
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toEqual(
+        expect.objectContaining({
+          code: "Invalid seconds parameter",
+          message: 'Query parameter "seconds" must be a non-negative number.',
+        }),
+      );
+    });
+  });
 });
 
 describe("requestInsights timestamp provider", () => {
@@ -293,6 +364,42 @@ describe("requestInsights timestamp provider", () => {
     expect(noContent.kind).toBe("bodyless");
     expect(noContent.headers["X-Generated-At"]).toBe(fixedTimestamp);
     expect(noContent.meta.generatedAt).toBe(fixedTimestamp);
+  });
+
+  test("delayedResponse aborts cleanly when the request is cancelled", async () => {
+    const abortController = new AbortController();
+    const responsePromise = delayedResponseService(
+      {
+        query: { seconds: "1" },
+        originalUrl: "/api/v1/timetaken?seconds=1",
+      },
+      { timestampProvider, signal: abortController.signal },
+    );
+
+    abortController.abort();
+
+    await expect(responsePromise).rejects.toMatchObject({
+      name: "AbortError",
+      message: "The operation was aborted.",
+    });
+  });
+
+  test("delayedResponse aborts immediately when the signal is already aborted", async () => {
+    const abortController = new AbortController();
+    abortController.abort();
+
+    await expect(
+      delayedResponseService(
+        {
+          query: { seconds: "1" },
+          originalUrl: "/api/v1/timetaken?seconds=1",
+        },
+        { timestampProvider, signal: abortController.signal },
+      ),
+    ).rejects.toMatchObject({
+      name: "AbortError",
+      message: "The operation was aborted.",
+    });
   });
 });
 

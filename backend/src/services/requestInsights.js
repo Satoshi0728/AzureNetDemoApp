@@ -1,3 +1,4 @@
+import os from "node:os";
 import { findHttpStatusCatalogEntry, isBodylessHttpStatus } from "../../../shared/http-status-catalog.mjs";
 
 const IMPORTANT_HEADERS = Object.freeze([
@@ -62,6 +63,7 @@ const defaultTimestampProvider = () => new Date().toISOString();
 
 const MIN_HTTP_STATUS = 200;
 const MAX_HTTP_STATUS = 599;
+const MAX_DELAY_SECONDS = 300;
 
 const resolveTimestampProvider = (options) =>
   typeof options?.timestampProvider === "function" ? options.timestampProvider : defaultTimestampProvider;
@@ -89,6 +91,42 @@ const buildHttpStatusError = (req, options, code, message) => {
     },
   };
 };
+
+const createAbortError = () => {
+  const error = new Error("The operation was aborted.");
+  error.name = "AbortError";
+  return error;
+};
+
+const wait = (durationMs, options) =>
+  new Promise((resolve, reject) => {
+    const signal = options?.signal;
+    let timerId = null;
+
+    const cleanup = () => {
+      signal?.removeEventListener?.("abort", handleAbort);
+    };
+
+    const handleAbort = () => {
+      if (timerId !== null) {
+        clearTimeout(timerId);
+      }
+      cleanup();
+      reject(createAbortError());
+    };
+
+    signal?.addEventListener?.("abort", handleAbort, { once: true });
+
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
+
+    timerId = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, durationMs);
+  });
 
 export const resolveClientIp = (req, options) => {
   const timestampProvider = resolveTimestampProvider(options);
@@ -260,5 +298,67 @@ export const getHttpStatus = (req, statusValue, options) => {
           },
         }),
     transportStatus: statusCode,
+  };
+};
+
+export const delayedResponse = async (req, options) => {
+  const timestampProvider = resolveTimestampProvider(options);
+  const signal = options?.signal;
+  const secondsValue = req?.query?.seconds;
+
+  if (secondsValue == null) {
+    return buildHttpStatusError(
+      req,
+      { timestampProvider },
+      "Missing seconds parameter",
+      'Query parameter "seconds" is required.',
+    );
+  }
+
+  if (Array.isArray(secondsValue)) {
+    return buildHttpStatusError(
+      req,
+      { timestampProvider },
+      "Invalid seconds parameter",
+      'Query parameter "seconds" must be a non-negative number.',
+    );
+  }
+
+  const normalizedSeconds = typeof secondsValue === "string" ? secondsValue.trim() : String(secondsValue).trim();
+  const requestedSeconds = Number(normalizedSeconds);
+
+  if (!normalizedSeconds || !Number.isFinite(requestedSeconds) || requestedSeconds < 0) {
+    return buildHttpStatusError(
+      req,
+      { timestampProvider },
+      "Invalid seconds parameter",
+      'Query parameter "seconds" must be a non-negative number.',
+    );
+  }
+
+  if (requestedSeconds > MAX_DELAY_SECONDS) {
+    return buildHttpStatusError(
+      req,
+      { timestampProvider },
+      "Invalid seconds parameter",
+      'Query parameter "seconds" must be 300 or less.',
+    );
+  }
+
+  const startedAt = timestampProvider();
+  const startedAtMs = Date.now();
+  await wait(requestedSeconds * 1000, { signal });
+  const completedAt = timestampProvider();
+  const completedAtMs = Date.now();
+
+  return {
+    delayMs: completedAtMs - startedAtMs,
+    requestedSeconds,
+    startedAt,
+    completedAt,
+    path: req.originalUrl,
+    server: {
+      hostname: os.hostname(),
+    },
   };
 };

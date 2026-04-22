@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   describeFqdn,
+  delayedResponse,
   resolveClientIp,
   summarizeHeaders,
   getHelloMessage,
@@ -14,6 +15,8 @@ const createRequestTimestampProvider = () => {
   const timestamp = new Date().toISOString();
   return () => timestamp;
 };
+
+const createLiveTimestampProvider = () => () => new Date().toISOString();
 
 router.get("/client-ip", (req, res) => {
   const timestampProvider = createRequestTimestampProvider();
@@ -71,6 +74,34 @@ router.get("/httpstatus", (req, res) => {
   }
 
   return res.status(response.transportStatus).json(response.body);
+});
+
+router.get("/timetaken", async (req, res, next) => {
+  const timestampProvider = createLiveTimestampProvider();
+  const abortController = new AbortController();
+  const handleClose = () => abortController.abort();
+
+  req.once("close", handleClose);
+
+  try {
+    const result = await delayedResponse(req, { timestampProvider, signal: abortController.signal });
+    if (abortController.signal.aborted || req.destroyed || res.destroyed) {
+      return;
+    }
+
+    if (result.kind === "json" && result.transportStatus) {
+      return res.status(result.transportStatus).json(result.body);
+    }
+
+    return res.json(result);
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      return;
+    }
+    return next(error);
+  } finally {
+    req.off?.("close", handleClose);
+  }
 });
 
 export default router;
