@@ -35,6 +35,13 @@ const endpointCatalog = Object.freeze([
     category: "page",
     description: "Lists all inbound HTTP headers with Azure-specific highlights.",
   },
+  {
+    name: "Time Taken",
+    path: "/tools/timetaken",
+    method: "GET",
+    category: "page",
+    description: "Lets users trigger or cancel the delayed-response API and view timing information in the browser.",
+  },
 
   // API endpoints (alphabetical)
   {
@@ -85,6 +92,13 @@ const endpointCatalog = Object.freeze([
     method: "GET",
     category: "api",
     description: "Returns the greeting payload used by the Hello page.",
+  },
+  {
+    name: "Time Taken API",
+    path: "/api/v1/timetaken?seconds=2.1",
+    method: "GET",
+    category: "api",
+    description: "Delays the response by the requested number of seconds, up to 300, using the seconds query parameter.",
   },
 ]);
 

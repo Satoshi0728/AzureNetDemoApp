@@ -132,7 +132,7 @@ cd frontend && npm install && npm run dev
 - 再度有効化したい場合は、ポータルの Smart detection から Failure Anomalies を ON に戻すか、同テンプレートを `state: Enabled` に変更して再デプロイしてください。
 - Failure Anomalies の警告ルールは Application Insights 作成時に自動生成され既定で有効化されるため、本オプションは [スマート検出 - 失敗の異常](https://learn.microsoft.com/ja-jp/azure/azure-monitor/alerts/proactive-failure-diagnostics?WT.mc_id=Portal-Microsoft_Azure_Monitoring#alert-rule-creation) を踏まえて自動有効化を明示的に無効化しています。
 
-デプロイ完了後は Web App の URL にアクセスし、`/tools/ip-fqdn`・`/tools/http-headers`・`/tools/http-status` などのルートが Express + React で再現されていることを確認してください。
+デプロイ完了後は Web App の URL にアクセスし、`/tools/ip-fqdn`・`/tools/http-headers`・`/tools/http-status`・`/tools/timetaken` などのルートが Express + React で再現されていることを確認してください。
 
 ## 主なルート / API
 
@@ -142,6 +142,7 @@ cd frontend && npm install && npm run dev
 | ページ | `/tools/hello` | バックエンドの `/api/v1/hello` から取得した Hello メッセージと生成時刻を表示する動作確認ページです。 |
 | ページ | `/tools/ip-fqdn` | クライアント IP と判定に使われたヘッダー種別、Host ヘッダーとフル URL を 1 画面で確認できます。IP・Host のコピー、最新値の再取得、直近 5 件までの履歴表示を備え、プロキシ配下での経路調査や DNS/Host 調査に役立ちます。 |
 | ページ | `/tools/http-headers` | 受信した全 HTTP ヘッダーを整理し、Azure Front Door / Application Gateway 固有ヘッダーなど重要な項目をハイライトします。最新値の取得、全ヘッダーの一括コピー、履歴保存・コピー、行ごとの展開表示が可能で、WAF・ロードバランサ経由時の付加ヘッダー検証に最適です。 |
+| ページ | `/tools/timetaken` | 遅延レスポンス用の UI ページです。整数秒単位で待機時間を指定して `/api/v1/timetaken` を呼び出し、待機中の進行状況、残り時間の目安、返却された時刻情報、サーバー hostname を確認できます。クライアント側からの「中断」もでき、gateway 配下での client cancel / timeout 検証の補助に利用できます。 |
 | API | `/api/healthz` | `ok: true` と現在時刻、固定バージョンを返す単純なヘルスチェック API。App Service / コンテナの起動確認、監視設定、ロードバランサのヘルスプローブにそのまま利用できます。認証不要で軽量なため外形監視に向きます。 |
 | API | `/api/v1/hello` | タイトル・メッセージ・生成時刻を含む挨拶 JSON を返します。UI 側の `/tools/hello` で利用され、API 到達性や JSON シリアライズ確認の最小ケースとして使えます。サンプルながらバックエンド経由のデータ取得パターンを示します。 |
 | API | `/api/v1/client-ip` | クライアント IP と判定ソースを返すスタンドアロン API。`X-Forwarded-For`／`X-Client-IP`／`X-Original-Forwarded-For` を優先的に参照し、なければソケットのアドレスを利用します。結果はタイムスタンプ付きで、経路上のどのヘッダーが有効かを機械的に確認できます。 |
@@ -150,6 +151,7 @@ cd frontend && npm install && npm run dev
 | API | `/api/v1/fqdn` | Host ヘッダーとプロトコル・パスを組み立てた URL を返す軽量 API。FQDN がどのように見えているかを個別に確認したいときに使用し、IP 判定が不要なケースでの疎通チェックを簡素化します。 |
 | API | `/api/v1/endpoints` | ランディングのカタログ表示で用いるエンドポイントメタデータを返します。ページ系・API 系を区別し、説明文や HTTP メソッド、ステータスコードを含むため、フロントエンドはこの JSON を元に一覧を自動生成できます。 |
 | API | `/api/v1/httpstatus?status=xxx` | `xxx` の部分に `200` から `599` までの整数を入れると、その HTTP ステータスコードを実際のレスポンスとして返す API です。通常のコードでは JSON で名称・説明文・生成時刻を返し、本文を持たないコードでは補助ヘッダーを返します。ブラウザ確認、curl 検証、フロントエンドの表示テスト、監視用途まで 1 本で扱えます。 |
+| API | `/api/v1/timetaken?seconds=xxx` | 指定した秒数だけ待機した後に JSON を返す遅延レスポンス API です。`seconds` は 0 以上 300 以下の number を受け付け、レスポンスには `requestedSeconds`、実測 `delayMs`、`startedAt`、`completedAt`、`path`、`server.hostname` を含みます。timeout 検証、ロードバランサ配下での client cancel / 499 調査、長時間応答の再現用途に便利です。 |
 
 ### `/api/v1/httpstatus` の詳細
 
@@ -207,15 +209,75 @@ curl -i "https://your-app.example/api/v1/httpstatus?status=404"
 - frontend のエラー表示や bodyless 応答ハンドリングを動作確認する
 - Application Gateway / Front Door / CDN 配下で、意図した HTTP 応答がそのまま見えるか確認する
 
+### `/api/v1/timetaken` と `/tools/timetaken` の詳細
+
+`/api/v1/timetaken` は、**指定した時間だけ意図的に応答を遅らせるための API** です。query parameter `seconds` に待機秒数を渡すと、その時間だけ待機した後に結果 JSON を返します。
+
+- 例: `/api/v1/timetaken?seconds=2`
+- 例: `/api/v1/timetaken?seconds=0.5`
+- 上限: `300` 秒
+
+> [!CAUTION]
+> この API は**テスト・検証用途**を主目的としています。最大 `300` 秒まで意図的に接続を保持できるため、公開環境で多数の同時リクエストを受けると、接続・ワーカー・メモリなどのリソースを占有し、負荷増大や DoS につながる可能性があります。
+> 公開して利用する場合は、少なくとも次のような対策を検討してください。
+> - 認証必須化
+> - IP 制限やアクセス元制御
+> - レート制限 / WAF / Bot 対策
+> - 本番環境での無効化
+> - `seconds` の上限短縮
+`seconds` の validation は次のルールです。
+
+- 未指定: `400 Bad Request`
+- 負数: `400 Bad Request`
+- 非数値: `400 Bad Request`
+- `300` を超える値: `400 Bad Request`
+
+正常時のレスポンスは概ね次の形です。
+
+```json
+{
+  "delayMs": 2003,
+  "requestedSeconds": 2,
+  "startedAt": "2026-04-19T00:00:00.000Z",
+  "completedAt": "2026-04-19T00:00:02.003Z",
+  "path": "/api/v1/timetaken?seconds=2",
+  "server": {
+    "hostname": "kof-app-instance-01"
+  }
+}
+```
+
+`delayMs` は「要求した秒数」ではなく **実際に待機した時間の実測値** を表します。これにより、App Service / Application Gateway / Front Door / コンテナ実行環境を経由した際の応答遅延をより実運用に近い形で観測できます。
+
+backend の待機処理は `AbortSignal` 対応です。クライアントが途中で接続を切った場合、サーバー側でも待機を打ち切るようにしており、不要なタイマー待機が残りにくい構成です。
+
+`/tools/timetaken` はこの API の UI です。主な機能は次のとおりです。
+
+- integer seconds を入力して API を呼び出す
+- 待機中の状態をページ内で表示する
+- 残り時間の目安を表示する
+- 待機完了後に `requestedSeconds` / `delayMs` / `startedAt` / `completedAt` / `server.hostname` を確認する
+- クライアント側から request を中断する
+
+UI では **整数秒のみ** を入力できます。小数秒を使いたい場合は API を直接呼び出してください。
+
+この機能の主な用途は次のとおりです。
+
+- 長時間応答をわざと再現して timeout の閾値を確認する
+- browser 側で request を途中中断し、Application Gateway の 499 相当ログを確認する
+- App Service / Container / Reverse Proxy 配下で、レスポンス開始までの待ち時間を観測する
+- frontend の loading / cancel UI を検証する
+
 ## アーキテクチャ概要
 
 - **フロントエンド (`frontend/`)**
   - Vite + React 18 + React Router でユーティリティをページ化し、`EndpointCatalogSection` で `/api/v1/endpoints` 由来のカタログを描画。
-  - `useApiResource` を全ツールで共通利用し、`/api/v1/hello` / `/api/v1/ip-fqdn` / `/api/v1/headers` などのレスポンスをハンドリング。テーブルや履歴表示は各ページ固有の UI コンポーネントで提供。
+  - `useApiResource` を全ツールで共通利用し、`/api/v1/hello` / `/api/v1/ip-fqdn` / `/api/v1/headers` / `/api/v1/httpstatus` / `/api/v1/timetaken` などのレスポンスをハンドリング。`TimeTakenPage` では request cancel にも対応します。
+
 - **バックエンド (`backend/`)**
   - Express 4 + Helmet + Compression + CORS。`routes/api.js` が `/api/healthz` を返し、`routes/v1/index.js` が v1 配下の各 API を提供。
-  - `services/requestInsights.js` が IP 判定・ヘッダー正規化・FQDN 生成・HTTP ステータス応答メタデータを担当し、`services/catalog.js` が SPA 用カタログメタデータを提供。
-  - 任意の HTTP ステータス確認は `/api/v1/httpstatus?status=...` で確認可能。
+  - `services/requestInsights.js` が IP 判定・ヘッダー正規化・FQDN 生成・HTTP ステータス応答メタデータ・遅延レスポンス制御を担当し、`services/catalog.js` が SPA 用カタログメタデータを提供。
+  - 任意の HTTP ステータス確認は `/api/v1/httpstatus?status=...`、遅延レスポンス確認は `/api/v1/timetaken?seconds=...` で検証可能です。
 - **コンテナ構成 / デプロイ**
   - ルートのマルチステージ `Dockerfile` でフロントエンドをビルドし、成果物を `backend/public/client` に同梱した Node 実行イメージを生成。
   - Azure App Service のコンテナ デプロイを主ターゲットとし、`deploy-script/deploy-appservice.ps1` で ACR ビルド〜 Web App 反映を自動化。
@@ -390,7 +452,7 @@ docker stop kof-app
   npm run test:watch  # 監視モード
   ```
 
-  `/api/v1/hello` や `/api/v1/client-ip` など主要ユーティリティ API のレスポンスを検証します。`/api/v1/httpstatus?status=403` の 403 応答や bodyless ステータスも自動チェック対象です。
+  `/api/v1/hello` や `/api/v1/client-ip` など主要ユーティリティ API のレスポンスを検証します。`/api/v1/httpstatus?status=403` の 403 応答や bodyless ステータスに加え、`/api/v1/timetaken` の入力 validation、正常応答、abort 済みの AbortSignal も自動チェック対象です。
 
 - **フロントエンド (Vitest + Testing Library)**
 
@@ -400,8 +462,8 @@ docker stop kof-app
   npm run test:watch  # 開発向け
   ```
 
-  React Router 化されたユーティリティページ (`IpFqdnPage` / `HelloPage` / `HeadersPage`) が API データを正しく描画するかを確認します。
-  IP/FQDN ページではリロードによる履歴追加ロジックもカバーするテストを追加済みです。
+  React Router 化されたユーティリティページ (`IpFqdnPage` / `HelloPage` / `HeadersPage` / `HttpStatusPage` / `TimeTakenPage`) が API データを正しく描画するかを確認します。
+  IP/FQDN ページではリロードによる履歴追加ロジック、Time Taken ページでは待機中表示と request 中断 UI もカバーしています。
 
 ## CORS 設定
 
