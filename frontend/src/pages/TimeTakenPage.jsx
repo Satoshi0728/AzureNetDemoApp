@@ -155,7 +155,7 @@ export const TimeTakenPage = () => {
             </p>
             <dl className="tool-meta tool-loading-status" aria-live="polite">
               <div>
-                <dt>requested Delay</dt>
+                <dt>requested delay</dt>
                 <dd>{formatDuration(requestedDelayMs)}</dd>
               </div>
               <div>

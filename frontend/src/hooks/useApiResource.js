@@ -121,7 +121,7 @@ export const useApiResource = (endpoint, { immediate = true, acceptErrorPayload 
       setError(buildFriendlyErrorMessage(endpoint, responseStatus, err));
       setStatus("error");
     }
-  }, [acceptErrorPayload, endpoint]);
+  }, [acceptErrorPayload, endpoint, resetState]);
 
   const cancel = useCallback(() => {
     controllerRef.current?.abort();

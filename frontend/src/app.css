@@ -2134,7 +2134,8 @@ body.is-menu-open .menu-toggle span:last-child {
   .floating-card,
   .console-dial__ring,
   .console-flow__connector-glow,
-  .tool-loading-turtle {
+  .tool-loading-turtle,
+  .tool-loading-shadow {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     animation-name: none !important;

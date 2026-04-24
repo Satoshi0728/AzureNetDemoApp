@@ -40,7 +40,7 @@ const endpointCatalog = Object.freeze([
     path: "/tools/timetaken",
     method: "GET",
     category: "page",
-    description: "Returns a delayed response after the requested number of seconds for timeout and load-testing checks.",
+    description: "Lets users trigger or cancel the delayed-response API and view timing information in the browser.",
   },
 
   // API endpoints (alphabetical)
