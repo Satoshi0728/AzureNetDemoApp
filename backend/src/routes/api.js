@@ -8,7 +8,7 @@ router.get("/healthz", (req, res) => {
     ok: true,
     service: "kof-backend",
     timestamp: new Date().toISOString(),
-    version: "1.0.0",
+    version: "1.5.1",
   });
 });
 

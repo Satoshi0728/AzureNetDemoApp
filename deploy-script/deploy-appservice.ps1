@@ -293,20 +293,32 @@ function Invoke-DockerBuildAndPush {
 
     if (-not $SkipBuild) {
         Write-Host "Building Docker image $LocalTag" -ForegroundColor Cyan
-        docker build --platform $Platform --file $DockerfilePath --tag $LocalTag $ContextPath | Out-Null
+        docker build --pull --platform $Platform --file $DockerfilePath --tag $LocalTag $ContextPath | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Docker build failed (exit code: $LASTEXITCODE). Deployment stopped."
+        }
     } else {
         Write-Host "Skipping docker build (requested)" -ForegroundColor Yellow
     }
 
     Write-Host "Tagging $LocalTag as $RemoteTag" -ForegroundColor Cyan
     docker tag $LocalTag $RemoteTag
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker tag failed (exit code: $LASTEXITCODE). Deployment stopped."
+    }
 
     if (-not $SkipPush) {
         Write-Host "Logging into Azure Container Registry" -ForegroundColor Cyan
         az acr login --name $AcrName | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "ACR login failed (exit code: $LASTEXITCODE). Deployment stopped."
+        }
 
         Write-Host "Pushing image $RemoteTag" -ForegroundColor Cyan
         docker push $RemoteTag | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Docker push failed (exit code: $LASTEXITCODE). Deployment stopped."
+        }
     } else {
         Write-Host "Skipping docker push (requested)" -ForegroundColor Yellow
     }
@@ -646,7 +658,7 @@ if ($LASTEXITCODE -ne 0) {
         --name $WebAppName `
         --resource-group $WebAppResourceGroupName `
         --plan $AppServicePlanName `
-        --container-image-name $remoteImageTag `
+        --container-image-name "${ImageName}:${ImageTag}" `
         --container-registry-url "https://$acrLoginServer" `
         --container-registry-user $acrUsername `
         --container-registry-password $acrPassword | Out-Null
